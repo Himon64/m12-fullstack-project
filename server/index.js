@@ -4,7 +4,7 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
-
+const stripe = require('stripe')(process.env.STRIP_SK_KEY)
 const port = process.env.PORT || 3000
 const app = express()
 // middleware
@@ -43,6 +43,9 @@ const client = new MongoClient(process.env.MONGODB_URI, {
   },
 })
 async function run() {
+  const plantsCollection = client.db('plantdb').collection('plants')
+  const orderCollection = client.db('plantdb').collection('orders')
+
   try {
     // Generate jwt token
     app.post('/jwt', async (req, res) => {
@@ -71,6 +74,51 @@ async function run() {
       } catch (err) {
         res.status(500).send(err)
       }
+    })
+
+    // add a plant in db
+    app.post('/add-plant', async (req, res) => {
+      const plant = req.body;
+      const result = await plantsCollection.insertOne(plant);
+      res.send(result);
+    })
+
+    // get all plants data from db
+    app.get('/plants', async (req, res) => {
+      const result = await plantsCollection.find().toArray();
+      res.send(result);
+    })
+
+    // get a plants data from db
+    app.get('/plant/:id', async (req, res) => {
+      const id = req.params.id;
+      const result = await plantsCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    })
+
+    // create payment intent for order
+    app.post('/create-payment-intent', async (req, res) => {
+      const { plantId, quantity } = req.body;
+      const plant = await plantsCollection.findOne({ _id: new ObjectId(plantId) });
+      if (!plant) return res.status(404).send({ message: 'Plant Not Found' })
+      const totalPrice = quantity * plant?.price * 100
+      // stripe....
+      const {client_secret} = await stripe.paymentIntents.create({
+        amount: totalPrice,
+        currency: 'usd',
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+      console.log(plantId, quantity);
+      res.send({ clientSecret:client_secret })
+    })
+
+    // save order data in orders collection in db
+    app.post('/order',async(req,res)=> {
+      const orderData = req.body;
+      const result = await orderCollection.insertOne(orderData);
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection
