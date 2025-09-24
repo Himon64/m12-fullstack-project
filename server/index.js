@@ -45,6 +45,7 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 async function run() {
   const plantsCollection = client.db('plantdb').collection('plants')
   const orderCollection = client.db('plantdb').collection('orders')
+  const userCollection = client.db('plantdb').collection('users')
 
   try {
     // Generate jwt token
@@ -113,12 +114,58 @@ async function run() {
       console.log(plantId, quantity);
       res.send({ clientSecret:client_secret })
     })
+ 
+    // save or update a users info in db
+    app.post("/user",async(req,res)=> {
+      const userData = req.body;
+      userData.role = 'customer'
+      userData.created_at = new Date().toISOString();
+      userData.last_loggedIn = new Date().toISOString();
+      const query = { email:userData?.email }
+      const alreadyExists = await userCollection.findOne(query)
+
+      if(!! alreadyExists){
+        const result = await userCollection.updateOne(
+          query,
+          {
+            $set:{last_loggedIn:new Date().toISOString()}
+          }
+        )
+        return res.send(result);
+      }
+      const result = await userCollection.insertOne(userData);
+      res.send(result);
+    })
+
+    // get a user's role
+    app.get('/user/role/:email',async(req,res) => {
+      const email = req.params.email;
+      const result = await userCollection.findOne({email});
+      if(!result) return res.status(404).send({message:'User Not Found.'})
+      res.send({role:result?.role})
+    })
 
     // save order data in orders collection in db
     app.post('/order',async(req,res)=> {
       const orderData = req.body;
       const result = await orderCollection.insertOne(orderData);
       res.send(result);
+    })
+
+    // update plant quantity (increase/decrease)
+    app.patch('/quantity-update/:id',async(req,res)=> {
+      const id = req.params.id;
+      const {quantityToUpdate,status} = req.body;
+      const filter = {_id:new ObjectId(id)};
+      const updateDoc = {
+        $inc:{
+          quantity:status==='increase'? quantityToUpdate : -quantityToUpdate,
+        },
+      }
+
+      const result = await plantsCollection.updateOne(filter,updateDoc);
+      res.send(result);
+
     })
 
     // Send a ping to confirm a successful connection
