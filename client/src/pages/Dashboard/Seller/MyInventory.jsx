@@ -1,6 +1,26 @@
 import PlantDataRow from '../../../components/Dashboard/TableRows/PlantDataRow'
+import LoadingSpinner from '../../../components/Shared/LoadingSpinner';
+import useAuth from '../../../hooks/useAuth'
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
+import { useQuery } from '@tanstack/react-query';
+
 
 const MyInventory = () => {
+  const {user} = useAuth();
+  const axiosSecure = useAxiosSecure();
+
+  const {data:sellers,isLoading,refetch} = useQuery({
+    queryKey:['seller'],
+    queryFn: async () => {
+      const {data} = await axiosSecure(`/orders/seller/${user?.email}`)
+      return data;
+    }
+  });
+
+  console.log(sellers)
+
+  if(isLoading) return <LoadingSpinner />
+
   return (
     <>
       <div className='container mx-auto px-4 sm:px-8'>
@@ -56,7 +76,11 @@ const MyInventory = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <PlantDataRow />
+                  {
+                    sellers.map(seller => (
+                      <PlantDataRow key={seller._id} seller={seller} refetch={refetch} />
+                    ))
+                  }
                 </tbody>
               </table>
             </div>

@@ -1,6 +1,24 @@
+import { useQuery } from '@tanstack/react-query';
 import SellerOrderDataRow from '../../../components/Dashboard/TableRows/SellerOrderDataRow'
+import useAuth from '../../../hooks/useAuth'
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
+import LoadingSpinner from '../../../components/Shared/LoadingSpinner';
 
 const ManageOrders = () => {
+  const {user} = useAuth();
+  const axiosSecure = useAxiosSecure();
+
+  const {data:managers = [],isLoading,refetch} = useQuery({
+    queryKey:['managers'],
+    queryFn:async () => {
+      const {data} = await axiosSecure(`/orders/seller/${user?.email}`)
+      return data;
+    }
+  });
+  console.log(managers)
+
+  if(isLoading) return <LoadingSpinner />
+ 
   return (
     <>
       <div className='container mx-auto px-4 sm:px-8'>
@@ -56,7 +74,11 @@ const ManageOrders = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <SellerOrderDataRow />
+                  {
+                    managers.map(manager => (
+                      <SellerOrderDataRow key={manager._id} manager={manager} refetch={refetch} />
+                    ))
+                  }
                 </tbody>
               </table>
             </div>
